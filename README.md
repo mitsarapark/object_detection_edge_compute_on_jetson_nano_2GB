@@ -1,7 +1,7 @@
 # object_detection_edge_compute_on_jetson_nano_2GB
 This project made for object detection on while driving that means we do not need to
 use all the class from coco dataset in normally while driving we see around 5 class is
-person bicycle car motorcycle bus 
+person bicycle car motorcycle bus after I realize let do it
 
 
 # Before you run my code i must to download all the dataset I use
@@ -16,4 +16,19 @@ my python is version 3.12.10 the library is depend on your python and GPU(I use 
 you can see the library on listlibrary.txt or use this command to install all
 
 pip install -r requirements.txt
+
+# Step to run file
+1.run file selec_class_txt.py
+Why we need to split because good model should have 80% train and 20% valid but after selec class I have approximately 3000 compared to 70000, which is only about 4%
+2.run file splitratio.py 
+this code take a long period of time while train model depend on your GPU
+3.run file train.py
+
+if you need to run test you can run this command
+yolo detect predict model=runs/detect/yolo8nretrain/weights/best.pt source="youcan use image video etc." show=True device=0
+
+# Benchmark
+When the retrain model finished you can run is command to test or run benchmark.py file
+
+yolo detect val model=runs/detect/yolo8nretrain/weights/best.pt data=voc_yolo/data.yaml
 

@@ -50,7 +50,7 @@ you can change to pretrain model by type model=yolov8n.pt
 
 yolo detect val model=runs/detect/yolo8nretrain/weights/best.pt data=voc_yolo/data.yaml
 
-the data after benchmark will store on runs/detect/
+the data after benchmark will store on directory runs/detect/
 
 # Convert to onnx
 After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network

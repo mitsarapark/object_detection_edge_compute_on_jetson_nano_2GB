@@ -47,7 +47,8 @@ def resplit_dataset(base_dir, out_dir, ratio):
     print("val:", len(val_files))
 resplit_dataset("afterselec","final",0.8)
 with open ("final/data.yaml","w") as data:
-    data.write("""path: D:/NSTDA/final
+    #path depend on your computer you can edit it before run
+    data.write("""path: /final 
 train: images/train
 val: images/val
 

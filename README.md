@@ -42,8 +42,9 @@ this code will train on your GPU but take a long period of time while train mode
 3.run file train.py
 
 if you need to run test you can run this command
+source=0 is your camera you can type test.jpg test.mp4
 ````
-yolo detect predict model=runs/detect/yolo8nretrain/weights/best.pt source="youcan use image video etc." show=True device=0
+yolo detect predict model=runs/detect/yolo8nretrain/weights/best.pt source=0 show=True device=0
 ````
 
 the result should like this

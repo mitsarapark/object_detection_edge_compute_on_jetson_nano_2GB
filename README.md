@@ -1,4 +1,8 @@
 # object_detection_edge_compute_on_jetson_nano_2GB
+This project made for object detection on while driving that means we do not need to
+use all the class from coco dataset in normally while driving we see around 5 class is
+person bicycle car motorcycle bus 
+
 
 # Before you run my code i must to download all the dataset I use
 1.COCO2017 dataset for retrain yolov8n model you can down load with this link

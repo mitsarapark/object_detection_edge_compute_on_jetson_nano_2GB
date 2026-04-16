@@ -25,9 +25,11 @@ https://www.robots.ox.ac.uk/~vgg/projects/pascal/VOC/voc2012/
 # After download all the dataset you need to down load library
 my python is version 3.12.10 the library is depend on your python and GPU(I use pythorch)
 you can see the library on listlibrary.txt or use this command to install all
-
+````
+```
 pip install -r list_library.txt
-
+```
+````
 # Step to run file
 This file will selec only 5 class we need
 

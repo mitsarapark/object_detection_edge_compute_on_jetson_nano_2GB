@@ -19,12 +19,15 @@ pip install -r requirements.txt
 
 # Step to run file
 This file will selec only 5 class we need
+
 1.run file selec_class_txt.py
 
 Why we need to split because good model should have 80% train and 20% valid but after selec class I have approximately 3000 compared to 70000, which is only about 4%
+
 2.run file splitratio.py 
 
 this code will train on your GPU but take a long period of time while train model depend on your GPU
+
 3.run file train.py
 
 if you need to run test you can run this command

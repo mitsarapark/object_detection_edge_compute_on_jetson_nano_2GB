@@ -1,10 +1,15 @@
 # object_detection_edge_compute_on_jetson_nano_2GB
 This project made for object detection on while driving that means we do not need to
 use all the class from coco dataset in normally while driving we see around 5 class is
-person bicycle car motorcycle bus after I realize let do it
+person bicycle car motorcycle bus after train model I deploy it on jetson nano by using 
+.onnx format and convert to .engine(tensorrt) to increase performance
+
+# Setup jetson nano 2GB
+I recommend 64GB of micro sd card
+1.install os on jetson nano by using jetpack because jetpack aready have tensorrt tools and we don't need to install by this link https://developer.nvidia.com/embedded/jetpack-sdk-461 click jetson nano develop kits and selec for jetson nano 2GB if you don't use jetson nano 2GB click on Jetson Nano Developer Kit
 
 # This section will do on your DESTOP
-please cd PC directory to do next step
+## please cd PC directory to do next step
 
 # Before you run my code i must to download all the dataset I use
 1.COCO2017 dataset for retrain yolov8n model you can down load with this link
@@ -40,3 +45,5 @@ When the retrain model finished you can run is command to test or run benchmark.
 
 yolo detect val model=runs/detect/yolo8nretrain/weights/best.pt data=voc_yolo/data.yaml
 
+# Convert to onnx
+After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network

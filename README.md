@@ -44,6 +44,8 @@ this code will train on your GPU but take a long period of time while train mode
 if you need to run test you can run this command
 yolo detect predict model=runs/detect/yolo8nretrain/weights/best.pt source="youcan use image video etc." show=True device=0
 
+the result should like this
+![Alt text](images/crosswalk.jpg)
 # Benchmark
 When the retrain model finished you can run is command to test or run benchmark.py file
 you can change to pretrain model by type model=yolov8n.pt

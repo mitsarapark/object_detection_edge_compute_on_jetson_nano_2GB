@@ -6,7 +6,11 @@ person bicycle car motorcycle bus after train model I deploy it on jetson nano b
 
 # Setup jetson nano 2GB
 I recommend 64GB of micro sd card
+
 1.install os on jetson nano by using jetpack because jetpack aready have tensorrt tools and we don't need to install by this link https://developer.nvidia.com/embedded/jetpack-sdk-461 click jetson nano develop kits and selec for jetson nano 2GB if you don't use jetson nano 2GB click on Jetson Nano Developer Kit
+2.format micro sd card
+3.use balena etcher to install os
+4.setup
 
 # This section will do on your DESTOP
 ## please cd PC directory to do next step

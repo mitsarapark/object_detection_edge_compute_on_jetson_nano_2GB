@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import os
 if __name__ == "__main__":
     YOLO("yolov8n.pt").train(
-        data="D:/NSTDA/final_merge/data.yaml",
+        data="/data.yaml",#data coco dataset after run splitratio.py
         epochs=30,
         device=0,
         batch=16,

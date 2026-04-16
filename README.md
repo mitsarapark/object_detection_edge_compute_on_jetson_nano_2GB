@@ -46,6 +46,7 @@ yolo detect predict model=runs/detect/yolo8nretrain/weights/best.pt source="youc
 
 # Benchmark
 When the retrain model finished you can run is command to test or run benchmark.py file
+you can change to pretrain model by type model=yolov8n.pt
 
 yolo detect val model=runs/detect/yolo8nretrain/weights/best.pt data=voc_yolo/data.yaml
 

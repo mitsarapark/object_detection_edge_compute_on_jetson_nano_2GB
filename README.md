@@ -15,7 +15,7 @@ I recommend 64GB of micro sd card
 # This section will do on your DESTOP
 ## please cd PC directory to do next step
 
-# Before you run my code i must to download all the dataset I use
+# Before you run my code you must to download all the dataset that I use
 1.COCO2017 dataset for retrain yolov8n model you can down load with this link
 https://www.kaggle.com/datasets/awsaf49/coco-2017-dataset
 
@@ -55,6 +55,7 @@ you can change to pretrain model by type model=yolov8n.pt
 yolo detect val model=runs/detect/yolo8nretrain/weights/best.pt data=voc_yolo/data.yaml
 ````
 the data after benchmark will store on directory runs/detect/
+interference mAP50 mAP50-95 Recall will show on your terminal 
 
 # Convert to onnx
 After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network

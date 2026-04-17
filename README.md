@@ -25,6 +25,8 @@ https://www.kaggle.com/datasets/awsaf49/coco-2017-dataset
 2.VOC2012 dataset for benchmark model you can down load with this link
 https://www.robots.ox.ac.uk/~vgg/projects/pascal/VOC/voc2012/
 
+3.extrac both of file
+
 # After download all the dataset you need to down load library
 my python is version 3.12.10 the library is depend on your python and GPU(I use pythorch)
 you can see the library on listlibrary.txt or use this command to install all
@@ -62,7 +64,7 @@ the data after benchmark will store on directory runs/detect/
 interference mAP50 mAP50-95 Recall will show on your terminal 
 
 # Convert to onnx
-After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network
+After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network file .onnx after convert will store on runs/detect/yolo8nretrain/weights/
 I create directory on ~/object_detection to store all thing we do in this project
 the tools we will is trtexec to convert .onnx to tensorrt(.engine)
 ````

@@ -65,6 +65,6 @@ interference mAP50 mAP50-95 Recall will show on your terminal
 After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network
 I create directory on ~/object_detection to store all thing we do in this project
 the tools we will is trtexec to convert .onnx to tensorrt(.engine)
-''''
+````
 /usr/src/tensorrt/bin/trtexec --onnx=modelonnxforjetson.onnx --saveEngine=model_retrain_fp16.engine
-''''
+````

@@ -53,7 +53,7 @@ yolo detect predict model=runs/detect/yolo8nretrain/weights/best.pt source=0 sho
 ````
 
 the result should like this
-![Alt text](output/crosswalk_result.jpg)
+![Alt text](output/PC/crosswalk_result.jpg)
 # Benchmark
 When the retrain model finished you can run is command to test or run benchmark.py file
 you can change to pretrain model by type model=yolov8n.pt

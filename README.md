@@ -49,26 +49,34 @@ this code will train on your GPU but take a long period of time while train mode
 if you need to run test you can run this command
 source=0 is your camera you can type test.jpg test.mp4
 ````
-yolo detect predict model=runs/detect/yolo8nretrain/weights/best.pt source=0 show=True device=0
+yolo detect predict model=~/models/yolo8nretrain/weights/best.pt source=0 show=True device=0
 ````
 
 the result should like this
-![Alt text](output/PC/crosswalk_result.jpg)
+![Alt text](outputs/PC/crosswalk_output.jpg)
 # Benchmark
 When the retrain model finished you can run is command to test or run benchmark.py file
 you can change to pretrain model by type model=yolov8n.pt
 ````
-yolo detect val model=runs/detect/yolo8nretrain/weights/best.pt data=voc_yolo/data.yaml
+yolo detect val model=~/models/yolo8nretrain/weights/best.pt data=voc_yolo/data.yaml
 ````
-the data after benchmark will store on directory runs/detect/
+the data after benchmark will store on directory(it will show on terminal) and
 interference mAP50 mAP50-95 Recall will show on your terminal 
 
 # Convert to onnx
-After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network file .onnx after convert will store on runs/detect/yolo8nretrain/weights/
+After satisfied with the results will convert to .onnx format after deploy to jetson nano 2GB run convert_pt_to_onnx.py file and move them to jetson nano in some way such as flash drive network file .onnx after convert will store directory(it will show on terminal)
 
-# Next section do on jetson nano 2GB please cd src/JETSON_NANO/object_detection
-I create directory on ~/object_detection to store all thing we do in this project
+# Next section do on jetson nano 2GB 
+## please cd src/JETSON_NANO/object_detection
+I create directory on ~/object_detection_edge_compute_on_jetson_nano_2GB/ to store all thing we do in this project on jetson nano
 the tools we will is trtexec to convert .onnx to tensorrt(.engine)
 ````
 /usr/src/tensorrt/bin/trtexec --onnx=modelonnxforjetson.onnx --saveEngine=model_retrain_fp16.engine
 ````
+# Setup jetson nano
+If you use jetpack 4.6.6 the some library will be installed but we need more you can see on list_library or use this command
+````
+pip3 install -r list_library.txt
+````
+now we can't use yolo with tensorrt because yolo need  python 3.8 or higher but tensorrt binding with os in python 3.6 it not compatible step to fix it is get input preprocess put into tensorrt and drawing that frame to save result
+

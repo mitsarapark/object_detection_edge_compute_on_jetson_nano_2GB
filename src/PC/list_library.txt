@@ -9,3 +9,4 @@ tqdm
 pyyaml
 onnx
 onnxruntime
+pytest-shutil

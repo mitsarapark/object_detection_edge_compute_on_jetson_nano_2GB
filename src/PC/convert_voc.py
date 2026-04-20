@@ -80,7 +80,7 @@ for xml_file in os.listdir(xml_dir):
             print("missing image:", img_path)
 
 with open("voc_yolo/data.yaml", "w") as data:
-    data.write("""path: D:/NSTDA/voc_yolo
+    data.write("""path: ~/object_detection_edge_compute_on_jetson_nano_2GB/src/PC/voc_yolo
 train: images/train
 val: images/val
 

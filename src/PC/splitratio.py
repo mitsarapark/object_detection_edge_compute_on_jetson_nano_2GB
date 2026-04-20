@@ -48,7 +48,7 @@ def resplit_dataset(base_dir, out_dir, ratio):
 resplit_dataset("afterselec","final",0.8)
 with open ("final/data.yaml","w") as data:
     #path depend on your computer you can edit it before run
-    data.write("""path: /final 
+    data.write("""path: ~/object_detection_edge_compute_on_jetson_nano_2GB/src/PC/final 
 train: images/train
 val: images/val
 

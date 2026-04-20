@@ -80,3 +80,14 @@ pip3 install -r list_library.txt
 ````
 now we can't use yolo with tensorrt because yolo need  python 3.8 or higher but tensorrt binding with os in python 3.6 it not compatible step to fix it is get input preprocess put into tensorrt and drawing that frame to save result
 
+# Step to run file
+fist of all run python file you need to use python3 command
+step to check code
+1.run testcamera.py
+````
+python3 testcamera.py
+````
+2.run test image detect run_detect_non_resize.py
+````
+python3 run_detect_non_resize.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --image ~/object_detection_edge_compute_on_jetson_nano_2GB/inputs/crosswalk_input.jpg
+````

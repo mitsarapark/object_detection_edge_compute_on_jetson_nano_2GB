@@ -21,21 +21,25 @@ import cv2
 import numpy as np
 import tensorrt as trt
 import pycuda.driver as cuda
-import pycuda.autoinit
+import pycuda.autoinit  # noqa: F401  — เริ่ม CUDA context อัตโนมัติ
 import time
 
 
 # ─── TensorRT Logger ─────────────────────────────────────────────────────────
+
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
 
 # ─── Engine Loader ───────────────────────────────────────────────────────────
+
 def load_engine(engine_path: str):
+    """โหลด .engine file กลับเป็น TensorRT engine object"""
     with open(engine_path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
         return runtime.deserialize_cuda_engine(f.read())
 
 
 # ─── Buffer Allocation ───────────────────────────────────────────────────────
+
 def allocate_buffers(engine):
     """จอง pinned CPU memory + GPU memory สำหรับทุก binding"""
     inputs, outputs, bindings = [], [], []
@@ -75,11 +79,9 @@ def infer(context, inputs, outputs, bindings, stream):
 
 
 # ─── Camera Open Helper ──────────────────────────────────────────────────────
-def open_source(source: str, width: int, height: int, fps: int):
 
+def open_source(source: str, width: int, height: int, fps: int):
     if source == "csi":
-        # GStreamer pipeline สำหรับ CSI camera บน Jetson Nano
-        # nvarguscamerasrc = ISP hardware ของ Jetson, ให้คุณภาพดีกว่า v4l2
         pipeline = (
             f"nvarguscamerasrc ! "
             f"video/x-raw(memory:NVMM), width={width}, height={height}, "
@@ -106,6 +108,7 @@ def open_source(source: str, width: int, height: int, fps: int):
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return cap, True
     except ValueError:
+        # ไม่ใช่ตัวเลข → เป็น video file path
         cap = cv2.VideoCapture(source)
         return cap, False
 
@@ -113,7 +116,10 @@ def open_source(source: str, width: int, height: int, fps: int):
 # ─── Letterbox ───────────────────────────────────────────────────────────────
 
 def letterbox_frame(frame_bgr, input_size: int):
-
+    """
+    Letterbox: resize รักษา aspect ratio แล้วเติม padding สีเทาสม่ำเสมอ
+    Returns: blob (CHW float32), scale, pad_x, pad_y
+    """
     orig_h, orig_w = frame_bgr.shape[:2]
 
     scale = min(input_size / orig_w, input_size / orig_h)
@@ -176,15 +182,16 @@ def postprocess_yolov8(raw, orig_w, orig_h, scale, pad_x, pad_y,
 # ─── Drawing ─────────────────────────────────────────────────────────────────
 
 PALETTE = [
-    (255,  56,  56), 
+    (255,  56,  56),
     (255, 157, 151), 
     (255, 112,  31), 
-    (255, 178,  29),
-    ( 72, 249,  10),
+    (255, 178,  29),  
+    ( 72, 249,  10), 
 ]
 
 
 def draw_detections(image, detections, labels):
+    """วาด bounding box + label + confidence บนภาพ"""
     for x1, y1, x2, y2, conf, cls_id in detections:
         color = PALETTE[cls_id % len(PALETTE)]
 
@@ -210,17 +217,17 @@ def main():
     parser.add_argument("--output",      default="output.mp4",             help="Output video path (video mode only)")
     parser.add_argument("--conf",        type=float, default=0.5,          help="Confidence threshold")
     parser.add_argument("--iou",         type=float, default=0.45,         help="NMS IoU threshold")
+    parser.add_argument("--num-classes", type=int,   default=5,            help="Number of classes")
     parser.add_argument("--input-size",  type=int,   default=640,          help="Model input size")
-    parser.add_argument("--cam-width",   type=int,   default=640,         help="Camera capture width")
-    parser.add_argument("--cam-height",  type=int,   default=480,          help="Camera capture height")
+    parser.add_argument("--cam-width",   type=int,   default=1280,         help="Camera capture width")
+    parser.add_argument("--cam-height",  type=int,   default=720,          help="Camera capture height")
     parser.add_argument("--cam-fps",     type=int,   default=30,           help="Camera FPS")
     parser.add_argument("--no-show",     action="store_true",              help="headless — ไม่เปิด window")
-    parser.add_argument("--save",        action="store_true",              help="save output video (camera mode)")
+    parser.add_argument("--save",        action="store_true",              help="บันทึก output video (camera mode)")
     args = parser.parse_args()
 
-    num-classes=5
     input_size = args.input_size
-    labels     = ["person", "bicycle", "car", "motorcycle", "bus"]
+    labels = ["person", "bicycle", "car", "motorcycle", "bus"]
 
     # ── Load engine ──
     print(f"[INFO] Loading engine: {args.engine}")
@@ -238,9 +245,9 @@ def main():
     cap, is_camera = open_source(args.source, args.cam_width, args.cam_height, args.cam_fps)
 
     if not cap.isOpened():
-        raise IOError(f"can not open source: {args.source}")
+        raise IOError(f"เปิด source ไม่ได้: {args.source}")
 
-    # camera not allow resolution and frame
+    # อ่านขนาด frame จริง (กล้องอาจไม่ยอมรับ resolution ที่ขอ)
     orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps    = cap.get(cv2.CAP_PROP_FPS) or args.cam_fps
@@ -250,7 +257,7 @@ def main():
     print(f"[INFO] {mode_str}: {orig_w}×{orig_h}  {fps:.1f} FPS"
           + (f"  {total} frames" if not is_camera else "  (live)"))
 
-    # ── Letterbox params ──
+    # ── Letterbox params (คำนวณครั้งเดียว) ──
     scale = min(input_size / orig_w, input_size / orig_h)
     new_w = int(orig_w * scale)
     new_h = int(orig_h * scale)
@@ -258,7 +265,6 @@ def main():
     pad_y = (input_size - new_h) // 2
     print(f"[INFO] Letterbox: scale={scale:.4f}  pad=({pad_x},{pad_y})")
 
-    # ── VideoWriter ──
     writer   = None
     do_write = (not is_camera) or args.save
     if do_write:
@@ -266,23 +272,27 @@ def main():
         writer = cv2.VideoWriter(args.output, fourcc, fps, (orig_w, orig_h))
         print(f"[INFO] Saving output → {args.output}")
 
-    frame_idx = 0
-    ms_list   = []
+    frame_idx      = 0
+    ms_list        = []
+    record_start   = None 
+    frames_written = 0    
+
+    print("[INFO] กด 'q' เพื่อหยุด")
     print("─" * 55)
 
     while True:
         ret, frame = cap.read()
         if not ret:
             if is_camera:
-                print("reconnect...")
+                print("[WARN] reconnect...")
                 cap.release()
                 cap, _ = open_source(args.source, args.cam_width, args.cam_height, args.cam_fps)
                 ret, frame = cap.read()
                 if not ret:
-                    print("[ERROR] reconnect")
+                    print("[ERROR] reconnect ไม่สำเร็จ หยุดทำงาน")
                     break
             else:
-                break
+                break  # วิดีโอหมด
 
         # ── Letterbox ──
         blob, _, _, _ = letterbox_frame(frame, input_size)
@@ -316,14 +326,24 @@ def main():
                     0.7, (0, 255, 0), 2, cv2.LINE_AA)
 
         if writer is not None:
+            if record_start is None:
+                record_start = time.perf_counter()
+
+            expected_time = record_start + (frames_written / fps)
+            sleep_time    = expected_time - time.perf_counter()
+
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+
             writer.write(result_frame)
+            frames_written += 1
 
         if frame_idx % 30 == 0:
             names = [f"{labels[c] if c < len(labels) else f'cls{c}'}({conf:.2f})"
-                     for _, _, _, _, conf, c in detections]
+                    for _, _, _, _, conf, c in detections]
             frame_info = f"{frame_idx:5d}/{total}" if not is_camera else f"{frame_idx:5d}/live"
             print(f"[frame {frame_info}]  {infer_ms:5.1f} ms  {cur_fps:4.1f} FPS"
-                  f"  → {names if names else 'no detection'}")
+                  f"  => {names if names else 'no detection'}")
 
         # ── Show window ──
         if not args.no_show:
@@ -334,7 +354,6 @@ def main():
 
         frame_idx += 1
 
-    # ── Cleanup ──
     cap.release()
     if writer is not None:
         writer.release()
@@ -347,7 +366,7 @@ def main():
     print(f"[INFO] Avg inference : {avg_ms:.1f} ms")
     print(f"[INFO] Avg FPS       : {1000/avg_ms:.1f}")
     if do_write:
-        print(f"[INFO] Saved => {args.output}")
+        print(f"[INFO] Saved         → {args.output}")
 
 
 if __name__ == "__main__":

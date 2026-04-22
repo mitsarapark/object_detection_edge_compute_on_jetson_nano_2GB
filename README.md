@@ -82,7 +82,7 @@ now we can't use yolo with tensorrt because yolo need  python 3.8 or higher but 
 
 # Step to run file
 first of all run python file you need to use python3 command because if you type python it mean python 2.7.17
-step to check code
+step to check code(1-3)
 1.run testcamera.py
 ````
 python3 testcamera.py
@@ -95,3 +95,8 @@ python3 run_detect_non_resize.py --engine ~/object_detection_edge_compute_on_jet
 ````
 python3 run_detect_add_video.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --video ~/object_detection_edge_compute_on_jetson_nano_2GB/inputs/first_video_input.mp4
 ````
+4.run test camera in put you can use camera(usb) or csi camera on this section
+````
+python3 run_detect_add_camera.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --video 0 --save --output camera_video_output.mp4
+````
+if section 4 is completly you worked was done

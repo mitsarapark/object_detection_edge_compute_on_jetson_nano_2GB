@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 import tensorrt as trt
 import pycuda.driver as cuda
-import pycuda.autoinit  # noqa: F401  — เริ่ม CUDA context อัตโนมัติ
+import pycuda.autoinit
 import time
 
 
@@ -210,15 +210,15 @@ def main():
     parser.add_argument("--output",      default="output.mp4",             help="Output video path (video mode only)")
     parser.add_argument("--conf",        type=float, default=0.5,          help="Confidence threshold")
     parser.add_argument("--iou",         type=float, default=0.45,         help="NMS IoU threshold")
-    parser.add_argument("--num-classes", type=int,   default=5,            help="Number of classes")
     parser.add_argument("--input-size",  type=int,   default=640,          help="Model input size")
-    parser.add_argument("--cam-width",   type=int,   default=1280,         help="Camera capture width")
-    parser.add_argument("--cam-height",  type=int,   default=720,          help="Camera capture height")
+    parser.add_argument("--cam-width",   type=int,   default=640,         help="Camera capture width")
+    parser.add_argument("--cam-height",  type=int,   default=480,          help="Camera capture height")
     parser.add_argument("--cam-fps",     type=int,   default=30,           help="Camera FPS")
     parser.add_argument("--no-show",     action="store_true",              help="headless — ไม่เปิด window")
-    parser.add_argument("--save",        action="store_true",              help="บันทึก output video (camera mode)")
+    parser.add_argument("--save",        action="store_true",              help="save output video (camera mode)")
     args = parser.parse_args()
 
+    num-classes=5
     input_size = args.input_size
     labels     = ["person", "bicycle", "car", "motorcycle", "bus"]
 
@@ -238,9 +238,9 @@ def main():
     cap, is_camera = open_source(args.source, args.cam_width, args.cam_height, args.cam_fps)
 
     if not cap.isOpened():
-        raise IOError(f"เปิด source ไม่ได้: {args.source}")
+        raise IOError(f"can not open source: {args.source}")
 
-    # อ่านขนาด frame จริง (กล้องอาจไม่ยอมรับ resolution ที่ขอ)
+    # camera not allow resolution and frame
     orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps    = cap.get(cv2.CAP_PROP_FPS) or args.cam_fps
@@ -250,7 +250,7 @@ def main():
     print(f"[INFO] {mode_str}: {orig_w}×{orig_h}  {fps:.1f} FPS"
           + (f"  {total} frames" if not is_camera else "  (live)"))
 
-    # ── Letterbox params (คำนวณครั้งเดียว) ──
+    # ── Letterbox params ──
     scale = min(input_size / orig_w, input_size / orig_h)
     new_w = int(orig_w * scale)
     new_h = int(orig_h * scale)
@@ -259,7 +259,6 @@ def main():
     print(f"[INFO] Letterbox: scale={scale:.4f}  pad=({pad_x},{pad_y})")
 
     # ── VideoWriter ──
-
     writer   = None
     do_write = (not is_camera) or args.save
     if do_write:
@@ -269,7 +268,6 @@ def main():
 
     frame_idx = 0
     ms_list   = []
-
     print("─" * 55)
 
     while True:
@@ -349,7 +347,7 @@ def main():
     print(f"[INFO] Avg inference : {avg_ms:.1f} ms")
     print(f"[INFO] Avg FPS       : {1000/avg_ms:.1f}")
     if do_write:
-        print(f"[INFO] Saved         → {args.output}")
+        print(f"[INFO] Saved => {args.output}")
 
 
 if __name__ == "__main__":

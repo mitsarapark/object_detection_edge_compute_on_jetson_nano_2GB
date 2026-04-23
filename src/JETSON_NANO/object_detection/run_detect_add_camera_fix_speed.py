@@ -1,7 +1,4 @@
 """
-YOLOv8n TensorRT — Video / Camera Detection (Letterbox)
-Output shape: [1, 9, 8400]  →  9 = 4 (cx,cy,w,h) + 5 classes
-
 Usage:
     # วิดีโอไฟล์
     python detect_video.py --engine model.engine --source input.mp4
@@ -12,8 +9,6 @@ Usage:
     # กล้อง USB (device index 0)
     python detect_video.py --engine model.engine --source 0
 
-    # headless (ไม่มี monitor)
-    python detect_video.py --engine model.engine --source 0 --no-show
 """
 
 import argparse
@@ -21,7 +16,7 @@ import cv2
 import numpy as np
 import tensorrt as trt
 import pycuda.driver as cuda
-import pycuda.autoinit  # noqa: F401  — เริ่ม CUDA context อัตโนมัติ
+import pycuda.autoinit 
 import time
 
 
@@ -41,7 +36,6 @@ def load_engine(engine_path: str):
 # ─── Buffer Allocation ───────────────────────────────────────────────────────
 
 def allocate_buffers(engine):
-    """จอง pinned CPU memory + GPU memory สำหรับทุก binding"""
     inputs, outputs, bindings = [], [], []
     stream = cuda.Stream()
 
@@ -81,7 +75,9 @@ def infer(context, inputs, outputs, bindings, stream):
 # ─── Camera Open Helper ──────────────────────────────────────────────────────
 
 def open_source(source: str, width: int, height: int, fps: int):
+
     if source == "csi":
+
         pipeline = (
             f"nvarguscamerasrc ! "
             f"video/x-raw(memory:NVMM), width={width}, height={height}, "
@@ -95,20 +91,15 @@ def open_source(source: str, width: int, height: int, fps: int):
         cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
         return cap, True
 
-    # ลองแปลง source เป็น int เพื่อดูว่าเป็น device index หรือเปล่า
     try:
         idx = int(source)
-        # USB camera — ใช้ V4L2 backend ตรงๆ เร็วกว่า auto-detect
         cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
-        # ตั้ง resolution และ FPS ที่ต้องการ
         cap.set(cv2.CAP_PROP_FRAME_WIDTH,  width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         cap.set(cv2.CAP_PROP_FPS,          fps)
-        # ลด buffer เหลือ 1 frame เพื่อลด latency
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return cap, True
     except ValueError:
-        # ไม่ใช่ตัวเลข → เป็น video file path
         cap = cv2.VideoCapture(source)
         return cap, False
 
@@ -140,7 +131,6 @@ def letterbox_frame(frame_bgr, input_size: int):
 
 
 # ─── Postprocessing ──────────────────────────────────────────────────────────
-
 def postprocess_yolov8(raw, orig_w, orig_h, scale, pad_x, pad_y,
                        num_classes=5, conf_thresh=0.5, iou_thresh=0.45):
     """แปลง raw output [1, 9, 8400] → list of (x1, y1, x2, y2, conf, class_id)"""
@@ -182,16 +172,15 @@ def postprocess_yolov8(raw, orig_w, orig_h, scale, pad_x, pad_y,
 # ─── Drawing ─────────────────────────────────────────────────────────────────
 
 PALETTE = [
-    (255,  56,  56),
+    (255,  56,  56), 
     (255, 157, 151), 
-    (255, 112,  31), 
+    (255, 112,  31),  
     (255, 178,  29),  
     ( 72, 249,  10), 
 ]
 
 
 def draw_detections(image, detections, labels):
-    """วาด bounding box + label + confidence บนภาพ"""
     for x1, y1, x2, y2, conf, cls_id in detections:
         color = PALETTE[cls_id % len(PALETTE)]
 
@@ -215,19 +204,19 @@ def main():
     parser.add_argument("--source",      required=True,
                         help="input source: video file path | 0/1/2 (USB camera index) | csi (Jetson CSI camera)")
     parser.add_argument("--output",      default="output.mp4",             help="Output video path (video mode only)")
-    parser.add_argument("--conf",        type=float, default=0.5,          help="Confidence threshold")
+    parser.add_argument("--conf",        type=float, default=0.25,          help="Confidence threshold")
     parser.add_argument("--iou",         type=float, default=0.45,         help="NMS IoU threshold")
     parser.add_argument("--num-classes", type=int,   default=5,            help="Number of classes")
     parser.add_argument("--input-size",  type=int,   default=640,          help="Model input size")
-    parser.add_argument("--cam-width",   type=int,   default=1280,         help="Camera capture width")
-    parser.add_argument("--cam-height",  type=int,   default=720,          help="Camera capture height")
+    parser.add_argument("--cam-width",   type=int,   default=640,         help="Camera capture width")
+    parser.add_argument("--cam-height",  type=int,   default=480,          help="Camera capture height")
     parser.add_argument("--cam-fps",     type=int,   default=30,           help="Camera FPS")
     parser.add_argument("--no-show",     action="store_true",              help="headless — ไม่เปิด window")
     parser.add_argument("--save",        action="store_true",              help="บันทึก output video (camera mode)")
     args = parser.parse_args()
 
     input_size = args.input_size
-    labels = ["person", "bicycle", "car", "motorcycle", "bus"]
+    labels     = ["person", "bicycle", "car", "motorcycle", "bus"]
 
     # ── Load engine ──
     print(f"[INFO] Loading engine: {args.engine}")
@@ -265,19 +254,36 @@ def main():
     pad_y = (input_size - new_h) // 2
     print(f"[INFO] Letterbox: scale={scale:.4f}  pad=({pad_x},{pad_y})")
 
-    writer   = None
+    # ── VideoWriter ──
     do_write = (not is_camera) or args.save
+    writer   = None
+
+    WARMUP_FRAMES = 30
+    warmup_ms     = []
+    print(f"[INFO] Warming up {WARMUP_FRAMES} frames...")
+    for _ in range(WARMUP_FRAMES):
+        ret, wf = cap.read()
+        if not ret:
+            break
+        wb, _, _, _ = letterbox_frame(wf, input_size)
+        np.copyto(inputs[0]["host"], wb.flatten())
+        t0 = time.perf_counter()
+        infer(context, inputs, outputs, bindings, stream)
+        warmup_ms.append((time.perf_counter() - t0) * 1000)
+
+    warmup_ms.sort()
+    median_ms  = warmup_ms[len(warmup_ms) // 2]
+    actual_fps = min(1000.0 / median_ms, fps)  
+    print(f"[INFO] Warmup median: {median_ms:.1f} ms → actual_fps={actual_fps:.1f}")
+
     if do_write:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(args.output, fourcc, fps, (orig_w, orig_h))
-        print(f"[INFO] Saving output → {args.output}")
+        writer = cv2.VideoWriter(args.output, fourcc, actual_fps, (orig_w, orig_h))
+        print(f"[INFO] Saving output → {args.output}  ({actual_fps:.1f} FPS)")
 
-    frame_idx      = 0
-    ms_list        = []
-    record_start   = None 
-    frames_written = 0    
+    frame_idx = 0
+    ms_list = []
 
-    print("[INFO] กด 'q' เพื่อหยุด")
     print("─" * 55)
 
     while True:
@@ -289,10 +295,10 @@ def main():
                 cap, _ = open_source(args.source, args.cam_width, args.cam_height, args.cam_fps)
                 ret, frame = cap.read()
                 if not ret:
-                    print("[ERROR] reconnect ไม่สำเร็จ หยุดทำงาน")
+                    print("[ERROR] reconnect")
                     break
             else:
-                break  # วิดีโอหมด
+                break 
 
         # ── Letterbox ──
         blob, _, _, _ = letterbox_frame(frame, input_size)
@@ -325,35 +331,28 @@ def main():
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
                     0.7, (0, 255, 0), 2, cv2.LINE_AA)
 
+        # ── Save ──
+
         if writer is not None:
-            if record_start is None:
-                record_start = time.perf_counter()
-
-            expected_time = record_start + (frames_written / fps)
-            sleep_time    = expected_time - time.perf_counter()
-
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-
             writer.write(result_frame)
-            frames_written += 1
 
+        # ── Print ทุก 30 frame ──
         if frame_idx % 30 == 0:
             names = [f"{labels[c] if c < len(labels) else f'cls{c}'}({conf:.2f})"
-                    for _, _, _, _, conf, c in detections]
+                     for _, _, _, _, conf, c in detections]
             frame_info = f"{frame_idx:5d}/{total}" if not is_camera else f"{frame_idx:5d}/live"
             print(f"[frame {frame_info}]  {infer_ms:5.1f} ms  {cur_fps:4.1f} FPS"
-                  f"  => {names if names else 'no detection'}")
+                  f"  → {names if names else 'no detection'}")
 
         # ── Show window ──
         if not args.no_show:
             cv2.imshow("YOLOv8 TensorRT", result_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
-                print("[INFO] stopped by user")
                 break
 
         frame_idx += 1
 
+    # ── Cleanup ──
     cap.release()
     if writer is not None:
         writer.release()

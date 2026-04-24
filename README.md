@@ -6,6 +6,7 @@ person bicycle car motorcycle bus after train model I deploy it on jetson nano b
 
 # Setup jetson nano 2GB
 I recommend 64GB of micro sd card
+camera can use format nearest 640x640 because i train model on resolution 640x640
 
 1.install os on jetson nano by using jetpack version 4.6.6 because jetpack aready have TensorRT 8.2.1 cuDNN 8.2.1 CUDA 10.2 OpenCV 4.1.1 tools and we don't need to install it later link https://developer.nvidia.com/jetpack-sdk-466 click jetson nano develop kits and selec for jetson nano 2GB if you don't use jetson nano 2GB click on Jetson Nano Developer Kit
 
@@ -70,33 +71,36 @@ After satisfied with the results will convert to .onnx format after deploy to je
 ## cd src/JETSON_NANO/object_detection
 I create directory on ~/object_detection_edge_compute_on_jetson_nano_2GB/ to store all thing we do in this project on jetson nano
 the tools we will is trtexec to convert .onnx to tensorrt(.engine)
+if you don't use board series jetson you need to convert to .engine by you self because tensorrt will optimize for you GPU
 ````
 /usr/src/tensorrt/bin/trtexec --onnx=modelonnxforjetson.onnx --saveEngine=model_retrain_fp16.engine
 ````
 # Setup jetson nano
-If you use jetpack 4.6.6 the some library will be installed but we need more you can see on list_library or use this command
+If you use jetpack 4.6.6 some library will be installed but we need more you can see on list_library.txt or use this command
 ````
 pip3 install -r list_library.txt
 ````
-now we can't use yolo with tensorrt because yolo need  python 3.8 or higher but tensorrt binding with os in python 3.6 it not compatible step to fix it is get input preprocess put into tensorrt and drawing that frame to save result
+now we can't use yolo with tensorrt because yolo need  python 3.8 or higher but tensorrt binding with os in python 3.6 it not compatible step to fix it is get input preprocess putinto tensorrt and drawing that frame to save result
 
 # Step to run file
-first of all run python file you need to use python3 command because if you type python it mean python 2.7.17
-step to check code(1-3)
+first of all run python file,you need to use python3 command because if you type python it mean python 2.7.17 and before python3 you need to use this command to preload LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 to load GNU OpenMP library before other library
+step to check,code(1-3)
 1.run testcamera.py
 ````
 python3 testcamera.py
 ````
 2.run test image detect run_detect_non_resize.py
 ````
-python3 run_detect_non_resize.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --image ~/object_detection_edge_compute_on_jetson_nano_2GB/inputs/crosswalk_input.jpg
+LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 run_detect_non_resize.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --image ~/object_detection_edge_compute_on_jetson_nano_2GB/inputs/crosswalk_input.jpg
 ````
 3.run test video input run_detect_add_video.py
 ````
-python3 run_detect_add_video.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --video ~/object_detection_edge_compute_on_jetson_nano_2GB/inputs/first_video_input.mp4
+LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 run_detect_add_video.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --video ~/object_detection_edge_compute_on_jetson_nano_2GB/inputs/first_video_input.mp4
 ````
 4.run test camera in put you can use camera(usb) or csi camera on this section
 ````
-python3 run_detect_add_camera.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --video 0 --save --output camera_video_output.mp4
+LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 run_detect_add_camera.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --video 0 --save --output camera_video_output.mp4
 ````
 if section 4 is completly you worked was done
+
+if have any question or issue please add into tab issue I will correct it(if i have time)

@@ -1,4 +1,7 @@
 """
+YOLOv8n TensorRT — Video / Camera Detection (Letterbox)
+Output shape: [1, 9, 8400]  →  9 = 4 (cx,cy,w,h) + 5 classes
+
 Usage:
     # วิดีโอไฟล์
     python detect_video.py --engine model.engine --source input.mp4
@@ -9,33 +12,33 @@ Usage:
     # กล้อง USB (device index 0)
     python detect_video.py --engine model.engine --source 0
 
+    # headless (ไม่มี monitor)
+    python detect_video.py --engine model.engine --source 0 --no-show
 """
 
 import argparse
 import cv2
+from moviepy.editor import VideoFileClip, vfx
 import numpy as np
 import tensorrt as trt
 import pycuda.driver as cuda
-import pycuda.autoinit 
+import pycuda.autoinit
 import time
 
 
 # ─── TensorRT Logger ─────────────────────────────────────────────────────────
-
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
 
 # ─── Engine Loader ───────────────────────────────────────────────────────────
-
 def load_engine(engine_path: str):
-    """โหลด .engine file กลับเป็น TensorRT engine object"""
     with open(engine_path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
         return runtime.deserialize_cuda_engine(f.read())
 
 
 # ─── Buffer Allocation ───────────────────────────────────────────────────────
-
 def allocate_buffers(engine):
+    """จอง pinned CPU memory + GPU memory สำหรับทุก binding"""
     inputs, outputs, bindings = [], [], []
     stream = cuda.Stream()
 
@@ -73,11 +76,11 @@ def infer(context, inputs, outputs, bindings, stream):
 
 
 # ─── Camera Open Helper ──────────────────────────────────────────────────────
-
 def open_source(source: str, width: int, height: int, fps: int):
 
     if source == "csi":
-
+        # GStreamer pipeline สำหรับ CSI camera บน Jetson Nano
+        # nvarguscamerasrc = ISP hardware ของ Jetson, ให้คุณภาพดีกว่า v4l2
         pipeline = (
             f"nvarguscamerasrc ! "
             f"video/x-raw(memory:NVMM), width={width}, height={height}, "
@@ -91,12 +94,16 @@ def open_source(source: str, width: int, height: int, fps: int):
         cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
         return cap, True
 
+    # ลองแปลง source เป็น int เพื่อดูว่าเป็น device index หรือเปล่า
     try:
         idx = int(source)
+        # USB camera — ใช้ V4L2 backend ตรงๆ เร็วกว่า auto-detect
         cap = cv2.VideoCapture(idx, cv2.CAP_V4L2)
+        # ตั้ง resolution และ FPS ที่ต้องการ
         cap.set(cv2.CAP_PROP_FRAME_WIDTH,  width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         cap.set(cv2.CAP_PROP_FPS,          fps)
+        # ลด buffer เหลือ 1 frame เพื่อลด latency
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return cap, True
     except ValueError:
@@ -107,10 +114,7 @@ def open_source(source: str, width: int, height: int, fps: int):
 # ─── Letterbox ───────────────────────────────────────────────────────────────
 
 def letterbox_frame(frame_bgr, input_size: int):
-    """
-    Letterbox: resize รักษา aspect ratio แล้วเติม padding สีเทาสม่ำเสมอ
-    Returns: blob (CHW float32), scale, pad_x, pad_y
-    """
+
     orig_h, orig_w = frame_bgr.shape[:2]
 
     scale = min(input_size / orig_w, input_size / orig_h)
@@ -131,6 +135,7 @@ def letterbox_frame(frame_bgr, input_size: int):
 
 
 # ─── Postprocessing ──────────────────────────────────────────────────────────
+
 def postprocess_yolov8(raw, orig_w, orig_h, scale, pad_x, pad_y,
                        num_classes=5, conf_thresh=0.5, iou_thresh=0.45):
     """แปลง raw output [1, 9, 8400] → list of (x1, y1, x2, y2, conf, class_id)"""
@@ -174,9 +179,9 @@ def postprocess_yolov8(raw, orig_w, orig_h, scale, pad_x, pad_y,
 PALETTE = [
     (255,  56,  56), 
     (255, 157, 151), 
-    (255, 112,  31),  
-    (255, 178,  29),  
-    ( 72, 249,  10), 
+    (255, 112,  31), 
+    (255, 178,  29),
+    ( 72, 249,  10),
 ]
 
 
@@ -203,18 +208,18 @@ def main():
     parser.add_argument("--engine",      required=True,                    help="Path to .engine file")
     parser.add_argument("--source",      required=True,
                         help="input source: video file path | 0/1/2 (USB camera index) | csi (Jetson CSI camera)")
-    parser.add_argument("--output",      default="output.mp4",             help="Output video path (video mode only)")
+    parser.add_argument("--output",      default="camera_video_output_fix_speed.mp4",             help="Output video path (video mode only)")
     parser.add_argument("--conf",        type=float, default=0.25,          help="Confidence threshold")
     parser.add_argument("--iou",         type=float, default=0.45,         help="NMS IoU threshold")
-    parser.add_argument("--num-classes", type=int,   default=5,            help="Number of classes")
     parser.add_argument("--input-size",  type=int,   default=640,          help="Model input size")
     parser.add_argument("--cam-width",   type=int,   default=640,         help="Camera capture width")
     parser.add_argument("--cam-height",  type=int,   default=480,          help="Camera capture height")
     parser.add_argument("--cam-fps",     type=int,   default=30,           help="Camera FPS")
     parser.add_argument("--no-show",     action="store_true",              help="headless — ไม่เปิด window")
-    parser.add_argument("--save",        action="store_true",              help="บันทึก output video (camera mode)")
+    parser.add_argument("--save",        action="store_true",              help="save output video (camera mode)")
     args = parser.parse_args()
 
+    num_classes=5
     input_size = args.input_size
     labels     = ["person", "bicycle", "car", "motorcycle", "bus"]
 
@@ -234,9 +239,9 @@ def main():
     cap, is_camera = open_source(args.source, args.cam_width, args.cam_height, args.cam_fps)
 
     if not cap.isOpened():
-        raise IOError(f"เปิด source ไม่ได้: {args.source}")
+        raise IOError(f"can not open source: {args.source}")
 
-    # อ่านขนาด frame จริง (กล้องอาจไม่ยอมรับ resolution ที่ขอ)
+    # camera not allow resolution and frame
     orig_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     orig_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps    = cap.get(cv2.CAP_PROP_FPS) or args.cam_fps
@@ -246,7 +251,7 @@ def main():
     print(f"[INFO] {mode_str}: {orig_w}×{orig_h}  {fps:.1f} FPS"
           + (f"  {total} frames" if not is_camera else "  (live)"))
 
-    # ── Letterbox params (คำนวณครั้งเดียว) ──
+    # ── Letterbox params ──
     scale = min(input_size / orig_w, input_size / orig_h)
     new_w = int(orig_w * scale)
     new_h = int(orig_h * scale)
@@ -255,42 +260,22 @@ def main():
     print(f"[INFO] Letterbox: scale={scale:.4f}  pad=({pad_x},{pad_y})")
 
     # ── VideoWriter ──
-    do_write = (not is_camera) or args.save
     writer   = None
-
-    WARMUP_FRAMES = 30
-    warmup_ms     = []
-    print(f"[INFO] Warming up {WARMUP_FRAMES} frames...")
-    for _ in range(WARMUP_FRAMES):
-        ret, wf = cap.read()
-        if not ret:
-            break
-        wb, _, _, _ = letterbox_frame(wf, input_size)
-        np.copyto(inputs[0]["host"], wb.flatten())
-        t0 = time.perf_counter()
-        infer(context, inputs, outputs, bindings, stream)
-        warmup_ms.append((time.perf_counter() - t0) * 1000)
-
-    warmup_ms.sort()
-    median_ms  = warmup_ms[len(warmup_ms) // 2]
-    actual_fps = min(1000.0 / median_ms, fps)  
-    print(f"[INFO] Warmup median: {median_ms:.1f} ms → actual_fps={actual_fps:.1f}")
-
+    do_write = (not is_camera) or args.save
     if do_write:
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(args.output, fourcc, actual_fps, (orig_w, orig_h))
-        print(f"[INFO] Saving output → {args.output}  ({actual_fps:.1f} FPS)")
+        writer = cv2.VideoWriter(args.output, fourcc, fps, (orig_w, orig_h))
+        print(f"[INFO] Saving output → {args.output}")
 
     frame_idx = 0
-    ms_list = []
-
+    ms_list   = []
     print("─" * 55)
 
     while True:
         ret, frame = cap.read()
         if not ret:
             if is_camera:
-                print("[WARN] reconnect...")
+                print("reconnect...")
                 cap.release()
                 cap, _ = open_source(args.source, args.cam_width, args.cam_height, args.cam_fps)
                 ret, frame = cap.read()
@@ -298,7 +283,7 @@ def main():
                     print("[ERROR] reconnect")
                     break
             else:
-                break 
+                break
 
         # ── Letterbox ──
         blob, _, _, _ = letterbox_frame(frame, input_size)
@@ -315,7 +300,7 @@ def main():
         detections = postprocess_yolov8(
             raw_outputs[0], orig_w, orig_h,
             scale, pad_x, pad_y,
-            num_classes=args.num_classes,
+            num_classes=num_classes,
             conf_thresh=args.conf,
             iou_thresh=args.iou,
         )
@@ -331,12 +316,9 @@ def main():
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
                     0.7, (0, 255, 0), 2, cv2.LINE_AA)
 
-        # ── Save ──
-
         if writer is not None:
             writer.write(result_frame)
 
-        # ── Print ทุก 30 frame ──
         if frame_idx % 30 == 0:
             names = [f"{labels[c] if c < len(labels) else f'cls{c}'}({conf:.2f})"
                      for _, _, _, _, conf, c in detections]
@@ -348,6 +330,7 @@ def main():
         if not args.no_show:
             cv2.imshow("YOLOv8 TensorRT", result_frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
+                print("[INFO] stopped by user")
                 break
 
         frame_idx += 1
@@ -361,11 +344,24 @@ def main():
     # ── Summary ──
     avg_ms = sum(ms_list) / len(ms_list) if ms_list else 0
     print("─" * 55)
-    print(f"[INFO] finished — {frame_idx} frames")
+    print(f"[INFO]  — {frame_idx} frames")
     print(f"[INFO] Avg inference : {avg_ms:.1f} ms")
-    print(f"[INFO] Avg FPS       : {1000/avg_ms:.1f}")
+    print(f"[INFO] Avg FPS : {1000/avg_ms:.1f}")
+
+    if do_write and avg_ms > 0:                                  
+        slow_clip = VideoFileClip(args.output)
+        slow_fac=(args.cam_fps/1000.0/avg_ms)
+        if(slow_fac>1):
+            slow_fac=slow_fac-1
+        else:
+            slow_fac=(1-slow_fac)+1
+        slow_clip = slow_clip.fx(vfx.speedx, slow_fac)
+        slow_clip.write_videofile("slow_motion_output.mp4")
+        print(f"[INFO] Saved => {args.output}")
+
+    print("finished") 
     if do_write:
-        print(f"[INFO] Saved         → {args.output}")
+        print(f"[INFO] Saved => {args.output}")
 
 
 if __name__ == "__main__":

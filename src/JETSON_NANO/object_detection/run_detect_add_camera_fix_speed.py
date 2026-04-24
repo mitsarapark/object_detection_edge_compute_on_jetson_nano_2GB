@@ -24,8 +24,7 @@ import tensorrt as trt
 import pycuda.driver as cuda
 import pycuda.autoinit
 import time
-
-
+import os
 # ─── TensorRT Logger ─────────────────────────────────────────────────────────
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
@@ -217,6 +216,7 @@ def main():
     parser.add_argument("--cam-fps",     type=int,   default=30,           help="Camera FPS")
     parser.add_argument("--no-show",     action="store_true",              help="headless — ไม่เปิด window")
     parser.add_argument("--save",        action="store_true",              help="save output video (camera mode)")
+    parser.add_argument("--buffer_frame", type=int, default=30,              help="buffer frame before calculate")
     args = parser.parse_args()
 
     num_classes=5
@@ -270,7 +270,7 @@ def main():
     frame_idx = 0
     ms_list   = []
     print("─" * 55)
-
+    print("start now")
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -341,8 +341,10 @@ def main():
         writer.release()
     cv2.destroyAllWindows()
 
-    # ── Summary ──
-    avg_ms = sum(ms_list) / len(ms_list) if ms_list else 0
+    res=0
+    for i in ms_list[args.buffer_frame:]:
+        res+=i
+    avg_ms = res / (len(ms_list)-args.buffer_frame) if ms_list else 0
     print("─" * 55)
     print(f"[INFO]  — {frame_idx} frames")
     print(f"[INFO] Avg inference : {avg_ms:.1f} ms")
@@ -350,18 +352,17 @@ def main():
 
     if do_write and avg_ms > 0:                                  
         slow_clip = VideoFileClip(args.output)
-        slow_fac=(args.cam_fps/1000.0/avg_ms)
+        slow_fac=(args.cam_fps/(1000.0/avg_ms))
         if(slow_fac>1):
             slow_fac=slow_fac-1
         else:
             slow_fac=(1-slow_fac)+1
         slow_clip = slow_clip.fx(vfx.speedx, slow_fac)
-        slow_clip.write_videofile("slow_motion_output.mp4")
+        os.remove(args.output)
+        slow_clip.write_videofile(args.output)
         print(f"[INFO] Saved => {args.output}")
 
     print("finished") 
-    if do_write:
-        print(f"[INFO] Saved => {args.output}")
 
 
 if __name__ == "__main__":

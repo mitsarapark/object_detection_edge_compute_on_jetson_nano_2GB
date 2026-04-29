@@ -282,11 +282,9 @@ def main():
 
     while True:
         ret, frame = cap.read()
-        # ret   = True ถ้าอ่าน frame สำเร็จ
-        # frame = numpy array BGR (orig_h, orig_w, 3)
 
         if not ret:
-            break  # วิดีโอหมด
+            break 
 
         # ── Letterbox ──
         blob, _, _, _ = letterbox_frame(frame, input_size)

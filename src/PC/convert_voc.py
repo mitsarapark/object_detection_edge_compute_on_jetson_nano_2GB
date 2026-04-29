@@ -5,20 +5,20 @@ import shutil
 xml_dir = "VOC2012/Annotations"
 img_src_dir = "VOC2012/JPEGImages"
 
-label_out_dir = "voc_yolo/lebels/val" 
+label_out_dir = "voc_yolo/labels/val" 
 img_out_dir   = "voc_yolo/images/val"
 
 os.makedirs(label_out_dir, exist_ok=True)
 os.makedirs(img_out_dir, exist_ok=True)
 
-KEEP_CLASSES = ["person", "bicycle", "motorbike", "bus", "car"]
+KEEP_CLASSES = ["person", "bicycle", "car", "motorbike", "bus"]
 
 CLASS_MAP = {
     "person": 0,
     "bicycle": 1,
-    "motorbike": 2,
-    "bus": 3,
-    "car": 4
+    "motorbike": 3,
+    "bus": 4,
+    "car": 2
 }
 
 def convert(size, box):

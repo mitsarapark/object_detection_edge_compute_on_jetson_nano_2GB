@@ -1,6 +1,6 @@
 """
 YOLOv8 TensorRT Validation Script
-- Precision, Recall, mAP50, mAP50-95
+- Precision, Recall, mAP50, mAP50-95 (Overall + Per-class)
 - Python 3.6 + TensorRT (JetPack 4.6.6) on Jetson Nano 2GB
 - VOC dataset converted to YOLO format
 - 5 classes: person, bicycle, car, motorcycle, bus
@@ -72,6 +72,9 @@ class TRTInferencer:
         return [out["host"].reshape(out["shape"]) for out in self.outputs]
 
 
+# ──────────────────────────────────────────
+# Letterbox Preprocess
+# ──────────────────────────────────────────
 def letterbox_preprocess(image_path, imgsz=640):
     img = cv2.imread(image_path)
     if img is None:
@@ -100,6 +103,9 @@ def letterbox_preprocess(image_path, imgsz=640):
     return np.ascontiguousarray(img_batch), orig_w, orig_h, scale, pad_x, pad_y
 
 
+# ──────────────────────────────────────────
+# Postprocess
+# ──────────────────────────────────────────
 def postprocess(output, orig_w, orig_h, scale, pad_x, pad_y,
                 conf_thres=0.25, iou_thres=0.45):
     pred = output[0]   # [9, 8400]
@@ -134,18 +140,24 @@ def postprocess(output, orig_w, orig_h, scale, pad_x, pad_y,
 
     # NMS
     indices = cv2.dnn.NMSBoxes(
-        [[b[0], b[1], b[2]-b[0], b[3]-b[1]] for b in boxes_xyxy],confidences, conf_thres, iou_thres
+        [[b[0], b[1], b[2]-b[0], b[3]-b[1]] for b in boxes_xyxy],
+        confidences, conf_thres, iou_thres
     )
 
     detections = []
     if len(indices) > 0:
         for i in indices.flatten():
             detections.append({
-                "box": [float(v) for v in boxes_xyxy[i]],"confidence": confidences[i],"class_id": int(class_ids[i])
+                "box": [float(v) for v in boxes_xyxy[i]],
+                "confidence": confidences[i],
+                "class_id": int(class_ids[i])
             })
     return detections
 
 
+# ──────────────────────────────────────────
+# Load Labels
+# ──────────────────────────────────────────
 def load_labels(label_path, orig_w, orig_h):
     gts = []
     if not os.path.exists(label_path):
@@ -194,6 +206,9 @@ def compute_ap(recalls, precisions):
     return np.sum((mrec[idx + 1] - mrec[idx]) * mpre[idx + 1])
 
 
+# ──────────────────────────────────────────
+# Compute mAP  (returns overall + per-class)
+# ──────────────────────────────────────────
 def compute_map(all_detections, all_ground_truths, iou_threshold=0.5):
     aps = []
     ap_per_class = {}
@@ -240,6 +255,46 @@ def compute_map(all_detections, all_ground_truths, iou_threshold=0.5):
     return np.mean(aps) if aps else 0.0, ap_per_class
 
 
+# ──────────────────────────────────────────
+# Precision / Recall / F1  per class
+# ──────────────────────────────────────────
+def compute_precision_recall_per_class(all_detections, all_ground_truths, iou_threshold=0.5):
+    precision_per_class = {}
+    recall_per_class    = {}
+    f1_per_class        = {}
+
+    for cls_id, cls_name in enumerate(CLASS_NAMES):
+        tp = fp = fn = 0
+        for dets, gts in zip(all_detections, all_ground_truths):
+            gt_cls  = [g for g in gts  if g["class_id"] == cls_id]
+            det_cls = [d for d in dets if d["class_id"] == cls_id]
+            matched_gt = set()
+            for det in det_cls:
+                best_iou, best_j = 0, -1
+                for j, gt in enumerate(gt_cls):
+                    iou = compute_iou(det["box"], gt["box"])
+                    if iou > best_iou:
+                        best_iou, best_j = iou, j
+                if best_iou >= iou_threshold and best_j >= 0 and best_j not in matched_gt:
+                    tp += 1
+                    matched_gt.add(best_j)
+                else:
+                    fp += 1
+            fn += len(gt_cls) - len(matched_gt)
+
+        p = tp / (tp + fp + 1e-16)
+        r = tp / (tp + fn + 1e-16)
+        f = 2 * p * r / (p + r + 1e-16)
+        precision_per_class[cls_name] = p
+        recall_per_class[cls_name]    = r
+        f1_per_class[cls_name]        = f
+
+    return precision_per_class, recall_per_class, f1_per_class
+
+
+# ──────────────────────────────────────────
+# Main Validation
+# ──────────────────────────────────────────
 def validate(args):
     print("\n" + "="*60)
     print("  YOLOv8 TensorRT Validation (5-class VOC + Letterbox)")
@@ -279,27 +334,45 @@ def validate(args):
         outputs = inferencer.infer(img_batch)
         inference_times.append((time.time() - t0) * 1000)
 
-        dets = postprocess(outputs, orig_w, orig_h,scale, pad_x, pad_y,args.conf, args.iou)#post process output
+        dets = postprocess(outputs, orig_w, orig_h, scale, pad_x, pad_y,
+                           args.conf, args.iou)
 
         label_file = os.path.splitext(os.path.basename(img_path))[0] + ".txt"
-        gts = load_labels(args.labels+"/"+label_file, orig_w, orig_h)#process label
+        gts = load_labels(os.path.join(args.labels, label_file), orig_w, orig_h)
 
         all_detections.append(dets)
         all_ground_truths.append(gts)
 
         if (idx + 1) % 10 == 0 or (idx + 1) == len(image_paths):
-            print("  [{}/{}] {:.1f} ms/img".format(idx+1, len(image_paths), np.mean(inference_times[-10:])))
+            print("  [{}/{}] {:.1f} ms/img".format(
+                idx+1, len(image_paths), np.mean(inference_times[-10:])))
 
-    # ── Metrics ──
+    # ──────────────────────────────────────────
+    # Compute Metrics
+    # ──────────────────────────────────────────
     print("\n" + "="*60)
     print("  Computing Metrics...")
 
+    # mAP@0.5
     map50, ap50_per_class = compute_map(all_detections, all_ground_truths, 0.50)
+
+    # mAP@0.5:0.95  (overall + per class)
     iou_thresholds = np.arange(0.50, 1.00, 0.05)
+    ap50_95_accumulator = {name: [] for name in CLASS_NAMES}
+    map50_95_list = []
 
-    map50_95 = np.mean([compute_map(all_detections, all_ground_truths, t)[0]for t in iou_thresholds
-                        ])
+    for t in iou_thresholds:
+        m, ap_t = compute_map(all_detections, all_ground_truths, t)
+        map50_95_list.append(m)
+        for name, ap in ap_t.items():
+            ap50_95_accumulator[name].append(ap)
 
+    map50_95 = np.mean(map50_95_list)
+    ap50_95_per_class = {
+        name: np.mean(vals) for name, vals in ap50_95_accumulator.items()
+    }
+
+    # Overall Precision / Recall / F1
     total_tp = total_fp = total_fn = 0
     for dets, gts in zip(all_detections, all_ground_truths):
         matched_gt = set()
@@ -318,12 +391,21 @@ def validate(args):
                 total_fp += 1
         total_fn += len(gts) - len(matched_gt)
 
-    precision = total_tp / (total_tp + total_fp + 1e-16)#1e-16 because if total_tp+total_fp=0 it will error
-    recall = total_tp / (total_tp + total_fn + 1e-16)#1e-16 = epsilon
-    f1 = 2 * precision * recall / (precision + recall + 1e-16)
+    precision = total_tp / (total_tp + total_fp + 1e-16)
+    recall    = total_tp / (total_tp + total_fn + 1e-16)
+    f1        = 2 * precision * recall / (precision + recall + 1e-16)
+
+    # Per-class Precision / Recall / F1
+    precision_per_class, recall_per_class, f1_per_class = \
+        compute_precision_recall_per_class(all_detections, all_ground_truths, 0.5)
+
     avg_inf = np.mean(inference_times)
 
-    print("\n  {:<20} {:>10}".format("Metric", "Value"))
+    # ──────────────────────────────────────────
+    # Print Results
+    # ──────────────────────────────────────────
+    print("\n  Overall Metrics")
+    print("  {:<20} {:>10}".format("Metric", "Value"))
     print("  " + "-"*32)
     print("  {:<20} {:>10.4f}".format("Precision",    precision))
     print("  {:<20} {:>10.4f}".format("Recall",       recall))
@@ -331,30 +413,70 @@ def validate(args):
     print("  {:<20} {:>10.4f}".format("mAP@0.5",      map50))
     print("  {:<20} {:>10.4f}".format("mAP@0.5:0.95", map50_95))
     print("  " + "-"*32)
-    print("\n  AP per class (IoU=0.5):")
-    for name, ap in ap50_per_class.items():
-        print("    {:<15} {:.4f}".format(name, ap))
-    print("  " + "-"*32)
+
+    # Per-class table
+    col_w = [15, 10, 10, 10, 10, 12]
+    header = "  {:<{}} {:>{}} {:>{}} {:>{}} {:>{}} {:>{}}".format(
+        "Class",     col_w[0],
+        "Precision", col_w[1],
+        "Recall",    col_w[2],
+        "F1",        col_w[3],
+        "AP@0.5",    col_w[4],
+        "AP@0.5:95", col_w[5],
+    )
+    sep = "  " + "-" * (sum(col_w) + 5)
+
+    print("\n  Per-class Metrics (IoU=0.5):")
+    print(header)
+    print(sep)
+    for name in CLASS_NAMES:
+        print("  {:<{}} {:>{}.4f} {:>{}.4f} {:>{}.4f} {:>{}.4f} {:>{}.4f}".format(
+            name,                        col_w[0],
+            precision_per_class[name],   col_w[1],
+            recall_per_class[name],      col_w[2],
+            f1_per_class[name],          col_w[3],
+            ap50_per_class[name],        col_w[4],
+            ap50_95_per_class[name],     col_w[5],
+        ))
+    print(sep)
     print("  {:<20} {:>9.1f}ms".format("Avg Inference", avg_inf))
-    print("  {:<20} {:>9.1f}".format("FPS",             1000.0/avg_inf))
-    print("  {:<20} {:>10}".format("Total Images",  len(image_paths)))
+    print("  {:<20} {:>9.1f}".format("FPS",             1000.0 / avg_inf))
+    print("  {:<20} {:>10}".format("Total Images",      len(image_paths)))
     print("="*60 + "\n")
 
+    # ──────────────────────────────────────────
+    # Save Results
+    # ──────────────────────────────────────────
     with open("validation_results.txt", "w") as f:
         f.write("YOLOv8 TensorRT Validation Results\n")
-        f.write("Engine: {}\n".format(args.engine))
+        f.write("Engine : {}\n".format(args.engine))
         f.write("Classes: {}\n".format(CLASS_NAMES))
-        f.write("Images: {}\n\n".format(len(image_paths)))
-        f.write("Precision:    {:.4f}\n".format(precision))
-        f.write("Recall:       {:.4f}\n".format(recall))
-        f.write("F1-Score:     {:.4f}\n".format(f1))
-        f.write("mAP@0.5:      {:.4f}\n".format(map50))
-        f.write("mAP@0.5:0.95: {:.4f}\n".format(map50_95))
-        f.write("\nAP per class:\n")
-        for name, ap in ap50_per_class.items():
-            f.write("  {}: {:.4f}\n".format(name, ap))
-        f.write("\nAvg Inference: {:.1f} ms\n".format(avg_inf))
-        f.write("FPS: {:.1f}\n".format(1000.0/avg_inf))
+        f.write("Images : {}\n\n".format(len(image_paths)))
+
+        f.write("Overall Metrics:\n")
+        f.write("  Precision    : {:.4f}\n".format(precision))
+        f.write("  Recall       : {:.4f}\n".format(recall))
+        f.write("  F1-Score     : {:.4f}\n".format(f1))
+        f.write("  mAP@0.5      : {:.4f}\n".format(map50))
+        f.write("  mAP@0.5:0.95 : {:.4f}\n".format(map50_95))
+
+        f.write("\nPer-class Metrics (IoU=0.5):\n")
+        f.write("  {:<15} {:>10} {:>10} {:>10} {:>10} {:>12}\n".format(
+            "Class", "Precision", "Recall", "F1", "AP@0.5", "AP@0.5:95"))
+        f.write("  " + "-" * (sum(col_w) + 5) + "\n")
+        for name in CLASS_NAMES:
+            f.write("  {:<15} {:>10.4f} {:>10.4f} {:>10.4f} {:>10.4f} {:>12.4f}\n".format(
+                name,
+                precision_per_class[name],
+                recall_per_class[name],
+                f1_per_class[name],
+                ap50_per_class[name],
+                ap50_95_per_class[name],
+            ))
+
+        f.write("\nAvg Inference : {:.1f} ms\n".format(avg_inf))
+        f.write("FPS           : {:.1f}\n".format(1000.0 / avg_inf))
+
     print("  Results saved to: validation_results.txt\n")
 
 
@@ -369,4 +491,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     validate(args)
 
-#LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 validation.py --engine model_retrain_fp16.engine --data voc_yolo/images/val --labels voc_yolo/labels/val
+# LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 validate_yolov8_trt.py \
+#   --engine model_retrain_fp16.engine \
+#   --data voc_yolo/images/val \
+#   --labels voc_yolo/labels/val

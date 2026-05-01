@@ -106,11 +106,11 @@ LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 run_detect_add_video.
 ````
 LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 run_detect_add_camera.py --engine ~/object_detection_edge_compute_on_jetson_nano_2GB/models/yolo8nretrain/weights/model_retrain_fp16.engine --video 0 --save --output camera_video_output.mp4
 ````
+you can see output from outputs/JETSON_NANO directory
 if section 4 is completly you worked was done
 
 for validation you need to move voc_yolo from pc to jetson in some way like flash drive and run code validation.py
 ````
 LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 python3 validation.py --engine=model_retrain_fp16.engine --data voc_yolo/images/val --labels voc_yolo/labels/val
 ````
-
 if have any question or issue please add into tab issue I will correct it(if i have time)
